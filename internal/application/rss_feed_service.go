@@ -1,0 +1,116 @@
+package application
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"time"
+
+	"misskeyRSSbot/internal/domain/entity"
+	"misskeyRSSbot/internal/domain/repository"
+)
+
+type RSSFeedService struct {
+	feedRepo  repository.FeedRepository
+	noteRepo  repository.NoteRepository
+	cacheRepo repository.CacheRepository
+}
+
+func NewRSSFeedService(
+	feedRepo repository.FeedRepository,
+	noteRepo repository.NoteRepository,
+	cacheRepo repository.CacheRepository,
+) *RSSFeedService {
+	return &RSSFeedService{
+		feedRepo:  feedRepo,
+		noteRepo:  noteRepo,
+		cacheRepo: cacheRepo,
+	}
+}
+
+func (s *RSSFeedService) ProcessFeed(ctx context.Context, rssURL string) error {
+	entries, err := s.feedRepo.Fetch(ctx, rssURL)
+	if err != nil {
+		return fmt.Errorf("failed to fetch RSS feed [%s]: %w", rssURL, err)
+	}
+
+	if len(entries) == 0 {
+		log.Printf("No entries found in RSS URL: %s", rssURL)
+		return nil
+	}
+
+	latestPublished, err := s.cacheRepo.GetLatestPublishedTime(ctx, rssURL)
+	if err != nil {
+		return fmt.Errorf("failed to get latest published time: %w", err)
+	}
+
+	var newEntries []*entity.FeedEntry
+	for _, entry := range entries {
+		processed, err := s.cacheRepo.IsProcessed(ctx, entry.GUID)
+		if err != nil {
+			log.Printf("Failed to check if processed [GUID: %s]: %v", entry.GUID, err)
+			continue
+		}
+		if processed {
+			continue
+		}
+
+		if entry.IsNewerThan(latestPublished) {
+			newEntries = append(newEntries, entry)
+		}
+	}
+
+	sortEntriesByPublishedAsc(newEntries)
+
+	var latestTime time.Time
+	for _, entry := range newEntries {
+		note := entity.NewNoteFromFeed(entry, entity.VisibilityHome)
+		if err := s.noteRepo.Post(ctx, note); err != nil {
+			log.Printf("Failed to post to Misskey [%s]: %v", entry.Title, err)
+			continue
+		}
+
+		log.Printf("Posted to Misskey: %s", entry.Title)
+
+		if err := s.cacheRepo.MarkAsProcessed(ctx, entry.GUID); err != nil {
+			log.Printf("Failed to mark as processed [GUID: %s]: %v", entry.GUID, err)
+		}
+
+		if entry.Published.After(latestTime) {
+			latestTime = entry.Published
+		}
+	}
+
+	if !latestTime.IsZero() {
+		if err := s.cacheRepo.SaveLatestPublishedTime(ctx, rssURL, latestTime); err != nil {
+			return fmt.Errorf("failed to save latest published time: %w", err)
+		}
+	}
+
+	if len(newEntries) > 0 {
+		log.Printf("Processed %d new entries from RSS URL [%s]", len(newEntries), rssURL)
+	}
+
+	return nil
+}
+
+func (s *RSSFeedService) ProcessAllFeeds(ctx context.Context, rssURLs []string) error {
+	for _, url := range rssURLs {
+		if err := s.ProcessFeed(ctx, url); err != nil {
+			log.Printf("RSS processing error [%s]: %v", url, err)
+			continue
+		}
+	}
+	return nil
+}
+
+func sortEntriesByPublishedAsc(entries []*entity.FeedEntry) {
+	n := len(entries)
+	for i := 0; i < n-1; i++ {
+		for j := 0; j < n-i-1; j++ {
+			if entries[j].Published.After(entries[j+1].Published) {
+				entries[j], entries[j+1] = entries[j+1], entries[j]
+			}
+		}
+	}
+}
