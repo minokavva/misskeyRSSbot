@@ -14,11 +14,11 @@ import (
 )
 
 type rateLimiter struct {
-	mu            sync.Mutex
-	tokens        int
-	maxTokens     int
-	refillRate    time.Duration
-	lastRefill    time.Time
+	mu         sync.Mutex
+	tokens     int
+	maxTokens  int
+	refillRate time.Duration
+	lastRefill time.Time
 }
 
 func newRateLimiter(maxTokens int, refillRate time.Duration) *rateLimiter {
@@ -32,7 +32,6 @@ func newRateLimiter(maxTokens int, refillRate time.Duration) *rateLimiter {
 
 func (rl *rateLimiter) Wait(ctx context.Context) error {
 	rl.mu.Lock()
-	defer rl.mu.Unlock()
 
 	now := time.Now()
 	elapsed := now.Sub(rl.lastRefill)
@@ -45,22 +44,25 @@ func (rl *rateLimiter) Wait(ctx context.Context) error {
 	if rl.tokens <= 0 {
 		waitTime := rl.refillRate - (now.Sub(rl.lastRefill) % rl.refillRate)
 		rl.mu.Unlock()
-		
+
 		timer := time.NewTimer(waitTime)
 		defer timer.Stop()
-		
+
 		select {
 		case <-ctx.Done():
-			rl.mu.Lock()
 			return ctx.Err()
 		case <-timer.C:
 			rl.mu.Lock()
 			rl.tokens = 1
 			rl.lastRefill = time.Now()
+			rl.tokens--
+			rl.mu.Unlock()
+			return nil
 		}
 	}
 
 	rl.tokens--
+	rl.mu.Unlock()
 	return nil
 }
 
@@ -79,9 +81,9 @@ type noteRepository struct {
 }
 
 type Config struct {
-	Host      string
-	AuthToken string
-	MaxRequests int
+	Host           string
+	AuthToken      string
+	MaxRequests    int
 	RefillInterval time.Duration
 }
 
