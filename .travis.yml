@@ -3,11 +3,6 @@ language: go
 go:
   - "1.23"
 
-os:
-  - linux
-
-dist: jammy
-
 cache:
   directories:
     - $HOME/.cache/go-build
