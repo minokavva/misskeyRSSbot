@@ -20,6 +20,8 @@ type Config struct {
 	MaxPermits int `envconfig:"MAX_PERMITS" default:"3"`
 
 	RefillInterval int `envconfig:"REFILL_INTERVAL" default:"10"`
+
+	LocalOnly bool `envconfig:"LOCAL_ONLY" default:"false"`
 }
 
 func LoadConfig() (*Config, error) {

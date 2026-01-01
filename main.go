@@ -30,6 +30,7 @@ func main() {
 		AuthToken:      cfg.AuthToken,
 		MaxPermits:     cfg.MaxPermits,
 		RefillInterval: cfg.GetRefillInterval(),
+		LocalOnly:      cfg.LocalOnly,
 	})
 	cacheRepo := storage.NewMemoryCacheRepository()
 

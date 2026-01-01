@@ -79,6 +79,7 @@ type noteRepository struct {
 	authToken   string
 	client      *http.Client
 	rateLimiter *rateLimiter
+	localOnly   bool
 }
 
 type Config struct {
@@ -86,6 +87,7 @@ type Config struct {
 	AuthToken      string
 	MaxPermits     int
 	RefillInterval time.Duration
+	LocalOnly      bool
 }
 
 func NewNoteRepository(cfg Config) repository.NoteRepository {
@@ -103,6 +105,7 @@ func NewNoteRepository(cfg Config) repository.NoteRepository {
 		authToken:   cfg.AuthToken,
 		client:      &http.Client{Timeout: 30 * time.Second},
 		rateLimiter: newRateLimiter(maxPermits, refillInterval),
+		localOnly:   cfg.LocalOnly,
 	}
 }
 
@@ -115,6 +118,7 @@ func (r *noteRepository) Post(ctx context.Context, note *entity.Note) error {
 		"i":          r.authToken,
 		"text":       note.Text,
 		"visibility": string(note.Visibility),
+		"localOnly":  r.localOnly,
 	}
 
 	payload, err := json.Marshal(notePayload)
