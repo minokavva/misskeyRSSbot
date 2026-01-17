@@ -22,6 +22,13 @@ type Config struct {
 	RefillInterval int `envconfig:"REFILL_INTERVAL" default:"10"`
 
 	LocalOnly bool `envconfig:"LOCAL_ONLY" default:"false"`
+
+	LLMProvider          string `envconfig:"LLM_PROVIDER" default:""`
+	LLMAPIKey            string `envconfig:"LLM_API_KEY"`
+	LLMModel             string `envconfig:"LLM_MODEL"`
+	LLMMaxTokens         int    `envconfig:"LLM_MAX_TOKENS" default:"0"`
+	LLMTimeout           int    `envconfig:"LLM_TIMEOUT" default:"30"`
+	LLMSystemInstruction string `envconfig:"LLM_SYSTEM_INSTRUCTION"`
 }
 
 func LoadConfig() (*Config, error) {
@@ -82,4 +89,24 @@ func (c *Config) GetFetchInterval() time.Duration {
 
 func (c *Config) GetRefillInterval() time.Duration {
 	return time.Duration(c.RefillInterval) * time.Second
+}
+
+type LLMConfig struct {
+	Provider          string
+	APIKey            string
+	Model             string
+	MaxTokens         int
+	Timeout           time.Duration
+	SystemInstruction string
+}
+
+func (c *Config) GetLLMConfig() LLMConfig {
+	return LLMConfig{
+		Provider:          c.LLMProvider,
+		APIKey:            c.LLMAPIKey,
+		Model:             c.LLMModel,
+		MaxTokens:         c.LLMMaxTokens,
+		Timeout:           time.Duration(c.LLMTimeout) * time.Second,
+		SystemInstruction: c.LLMSystemInstruction,
+	}
 }

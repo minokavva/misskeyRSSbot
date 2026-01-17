@@ -12,20 +12,23 @@ import (
 )
 
 type RSSFeedService struct {
-	feedRepo  repository.FeedRepository
-	noteRepo  repository.NoteRepository
-	cacheRepo repository.CacheRepository
+	feedRepo       repository.FeedRepository
+	noteRepo       repository.NoteRepository
+	cacheRepo      repository.CacheRepository
+	summarizerRepo repository.SummarizerRepository
 }
 
 func NewRSSFeedService(
 	feedRepo repository.FeedRepository,
 	noteRepo repository.NoteRepository,
 	cacheRepo repository.CacheRepository,
+	summarizerRepo repository.SummarizerRepository,
 ) *RSSFeedService {
 	return &RSSFeedService{
-		feedRepo:  feedRepo,
-		noteRepo:  noteRepo,
-		cacheRepo: cacheRepo,
+		feedRepo:       feedRepo,
+		noteRepo:       noteRepo,
+		cacheRepo:      cacheRepo,
+		summarizerRepo: summarizerRepo,
 	}
 }
 
@@ -80,7 +83,17 @@ func (s *RSSFeedService) ProcessFeed(ctx context.Context, rssURL string) error {
 
 	var latestTime time.Time
 	for _, entry := range newEntries {
-		note := entity.NewNoteFromFeed(entry, entity.VisibilityHome)
+		var summary string
+
+		if s.summarizerRepo != nil && s.summarizerRepo.IsEnabled() {
+			var err error
+			summary, err = s.summarizerRepo.Summarize(ctx, entry.Link, entry.Title)
+			if err != nil {
+				log.Printf("Failed to summarize [%s]: %v", entry.Title, err)
+			}
+		}
+
+		note := entity.NewNoteFromFeedWithSummary(entry, summary, entity.VisibilityHome)
 		if err := s.noteRepo.Post(ctx, note); err != nil {
 			log.Printf("Failed to post to Misskey [%s]: %v", entry.Title, err)
 			continue

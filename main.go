@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"misskeyRSSbot/internal/application"
+	"misskeyRSSbot/internal/infrastructure/llm"
 	"misskeyRSSbot/internal/infrastructure/misskey"
 	"misskeyRSSbot/internal/infrastructure/rss"
 	"misskeyRSSbot/internal/infrastructure/storage"
@@ -24,6 +25,9 @@ func main() {
 		log.Fatal("Failed to load configuration:", err)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	feedRepo := rss.NewFeedRepository()
 	noteRepo := misskey.NewNoteRepository(misskey.Config{
 		Host:           cfg.MisskeyHost,
@@ -34,10 +38,30 @@ func main() {
 	})
 	cacheRepo := storage.NewMemoryCacheRepository()
 
-	service := application.NewRSSFeedService(feedRepo, noteRepo, cacheRepo)
+	llmCfg := cfg.GetLLMConfig()
+	summarizerRepo, err := llm.NewSummarizerRepository(ctx, llm.Config{
+		Provider:          llmCfg.Provider,
+		APIKey:            llmCfg.APIKey,
+		Model:             llmCfg.Model,
+		MaxTokens:         llmCfg.MaxTokens,
+		Timeout:           llmCfg.Timeout,
+		SystemInstruction: llmCfg.SystemInstruction,
+	})
+	if err != nil {
+		log.Printf("Warning: LLM summarizer initialization failed: %v", err)
+		log.Println("Continuing without summarization feature...")
+		summarizerRepo, err = llm.NewSummarizerRepository(ctx, llm.Config{Provider: "noop"})
+		if err != nil {
+			log.Fatal("Failed to create fallback noop summarizer:", err)
+		}
+	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	service := application.NewRSSFeedService(
+		feedRepo,
+		noteRepo,
+		cacheRepo,
+		summarizerRepo,
+	)
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)

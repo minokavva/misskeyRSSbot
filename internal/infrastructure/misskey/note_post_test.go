@@ -37,11 +37,11 @@ func TestNoteRepository_Post_Success(t *testing.T) {
 	defer server.Close()
 
 	repo := &noteRepository{
-		host:      server.URL,
-		authToken: "test-token",
-		client:    &http.Client{Timeout: 30 * time.Second},
+		host:        server.URL,
+		authToken:   "test-token",
+		client:      &http.Client{Timeout: 30 * time.Second},
 		rateLimiter: newRateLimiter(3, 10*time.Second),
-		localOnly: false,
+		localOnly:   false,
 	}
 
 	note := entity.NewNote("Test note content", entity.VisibilityHome)

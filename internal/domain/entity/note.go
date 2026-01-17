@@ -30,3 +30,14 @@ func NewNote(text string, visibility NoteVisibility) *Note {
 		Visibility: visibility,
 	}
 }
+
+func NewNoteFromFeedWithSummary(entry *FeedEntry, summary string, visibility NoteVisibility) *Note {
+	if summary == "" {
+		return NewNoteFromFeed(entry, visibility)
+	}
+	text := fmt.Sprintf("📰 %s\n\n【要約】\n%s\n\n%s", entry.Title, summary, entry.Link)
+	return &Note{
+		Text:       text,
+		Visibility: visibility,
+	}
+}
