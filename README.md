@@ -38,9 +38,17 @@ go build
 ./misskeyRSSbot
 ```
 
+### Docker
+
+```bash
+docker compose up -d
+```
+
+`cache.db` is persisted via a named volume.
+
 ### Running as a systemd Service
 
-Example systemd service configuration:
+Example systemd service configuration
 
 ```ini
 [Unit]

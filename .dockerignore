@@ -1,0 +1,5 @@
+.env
+.git
+*.db
+README.md
+LICENSE
