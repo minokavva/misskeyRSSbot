@@ -1,17 +1,18 @@
 FROM golang:1.24-alpine AS builder
 
+RUN apk add --no-cache tzdata
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build -o misskeyRSSbot .
+RUN CGO_ENABLED=0 go build -o misskeyRSSbot .
 
-FROM alpine:3.21
+FROM gcr.io/distroless/static:nonroot
 
-RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 COPY --from=builder /app/misskeyRSSbot .
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 
 VOLUME /app/data
 
-CMD ["./misskeyRSSbot"]
+ENTRYPOINT ["./misskeyRSSbot"]
