@@ -2,9 +2,6 @@ package llm
 
 import (
 	"context"
-	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -139,50 +136,6 @@ func TestBedrockSummarizerParseResponse(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if got != tc.want {
-				t.Fatalf("expected %q, got %q", tc.want, got)
-			}
-		})
-	}
-}
-
-func TestFetchArticleText(t *testing.T) {
-	testCases := []struct {
-		name      string
-		body      string
-		want      string
-		wantError bool
-	}{
-		{
-			name: "article tag",
-			body: "<html><article>Hello <b>World</b></article></html>",
-			want: "Hello World",
-		},
-		{
-			name:      "empty content",
-			body:      "<html><body></body></html>",
-			wantError: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				_, _ = w.Write([]byte(tc.body))
-			}))
-			defer server.Close()
-
-			ctx := context.Background()
-			got, err := fetchArticleText(ctx, server.URL, 5*time.Second)
-			if tc.wantError {
-				if err == nil {
-					t.Fatalf("expected error, got nil")
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if strings.TrimSpace(got) != tc.want {
 				t.Fatalf("expected %q, got %q", tc.want, got)
 			}
 		})

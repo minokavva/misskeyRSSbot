@@ -1,15 +1,11 @@
 package llm
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
-	"net/http"
 	"strings"
 	"time"
 
-	"github.com/PuerkitoBio/goquery"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
@@ -17,6 +13,7 @@ import (
 	"github.com/aws/smithy-go/auth/bearer"
 
 	"misskeyRSSbot/internal/domain/repository"
+	htmlfetcher "misskeyRSSbot/internal/infrastructure/html"
 )
 
 type bedrockSummarizer struct {
@@ -29,8 +26,6 @@ type bedrockSummarizer struct {
 
 const (
 	bedrockDefaultMaxTokens = int32(512)
-	bedrockMaxHTMLBytes     = int64(2 * 1024 * 1024)
-	bedrockMaxTextChars     = 8000
 )
 
 func newBedrockSummarizer(ctx context.Context, cfg Config) (repository.SummarizerRepository, error) {
@@ -87,7 +82,7 @@ func (s *bedrockSummarizer) Summarize(ctx context.Context, url, title string) (s
 	ctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
 
-	articleText, err := fetchArticleText(ctx, url, s.timeout)
+	articleText, err := htmlfetcher.FetchArticleText(ctx, url, s.timeout)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch article text: %w", err)
 	}
@@ -169,49 +164,3 @@ func (s *bedrockSummarizer) parseResponse(resp *bedrockruntime.ConverseOutput) (
 	return summary, nil
 }
 
-func fetchArticleText(ctx context.Context, url string, timeout time.Duration) (string, error) {
-	client := &http.Client{Timeout: timeout}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("failed to fetch url: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= http.StatusBadRequest {
-		return "", fmt.Errorf("unexpected status code: %s", resp.Status)
-	}
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, bedrockMaxHTMLBytes))
-	if err != nil {
-		return "", fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
-	if err != nil {
-		return "", fmt.Errorf("failed to parse html: %w", err)
-	}
-
-	text := strings.TrimSpace(doc.Find("article").Text())
-	if text == "" {
-		text = strings.TrimSpace(doc.Find("main").Text())
-	}
-	if text == "" {
-		text = strings.TrimSpace(doc.Text())
-	}
-
-	text = strings.Join(strings.Fields(text), " ")
-	if text == "" {
-		return "", fmt.Errorf("empty article content")
-	}
-
-	if len(text) > bedrockMaxTextChars {
-		text = text[:bedrockMaxTextChars]
-	}
-
-	return text, nil
-}
